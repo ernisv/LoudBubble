@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">LoudBubble</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_zero">Zero</string>
+</resources>
