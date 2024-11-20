@@ -16,28 +16,55 @@ class BubbleManager(
 
     var bubleStateListener: (Float, Float) -> Unit = { _, _ -> }
 
-    private var zeroX: Float = 0f
-    private var zeroY: Float = 0f
-    private var zeroZ: Float = 0f
+    private var zeroPitch: Float = 0f
+    private var zeroRoll: Float = 0f
 
-    private var lastAccelValues: FloatArray = FloatArray(3)
+    private var lastPitch: Float = 0f
+    private var lastRoll: Float = 0f
 
     private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val rotationVectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
     private val sensorListener = object : SensorEventListener {
+        fun toDegrees(radians: Float): Float {
+            return radians * 180 / Math.PI.toFloat()
+        }
+
         override fun onSensorChanged(event: SensorEvent) {
-            lastAccelValues = event.values
-            val x = event.values[0].toDouble() - zeroX
-            val y = event.values[1].toDouble() - zeroY
-            val z = event.values[2].toDouble() - zeroZ
+            when (event.sensor.type) {
 
-            val pitch = Math.toDegrees(
-                atan2(y, sqrt(x * x + z * z))
-            )
+                Sensor.TYPE_ROTATION_VECTOR -> {
+                    val lastRotationVector = event.values
 
-            val roll = Math.toDegrees(atan2(-x, z))
+                    val rotationMatrix = FloatArray(9)
+                    SensorManager.getRotationMatrixFromVector(
+                        rotationMatrix,
+                        lastRotationVector
+                    )
 
-            bubleStateListener(pitch.toFloat(), roll.toFloat())
+                    // Remap the coordinate system to have Z pointing to the sky and X pointing along the device's short side
+                    val remappedRotationMatrix = FloatArray(9)
+                    SensorManager.remapCoordinateSystem(
+                        rotationMatrix,
+                        SensorManager.AXIS_X,
+                        SensorManager.AXIS_Z,
+                        remappedRotationMatrix
+                    )
+
+                    // Get the orientation angles (pitch, roll, azimuth) from the remapped rotation matrix
+                    val orientationAngles = FloatArray(3)
+                    SensorManager.getOrientation(remappedRotationMatrix, orientationAngles)
+
+                    // Extract pitch and roll values
+                    lastPitch = orientationAngles[1]
+                    lastRoll = orientationAngles[2]
+
+                    val pitch = lastPitch - zeroPitch
+                    val roll = lastRoll - zeroRoll
+
+                    bubleStateListener(toDegrees(pitch), toDegrees(roll))
+                }
+            }
         }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -46,27 +73,27 @@ class BubbleManager(
     }
 
     fun zero() {
-        zeroX = lastAccelValues[0]
-        zeroY = lastAccelValues[1]
-        zeroZ = lastAccelValues[2]
+        zeroPitch = lastPitch
+        zeroRoll = lastRoll
 
         sharedPreferences.edit(commit = true) {
-            putFloat("zeroX", zeroX)
-            putFloat("zeroY", zeroY)
-            putFloat("zeroZ", zeroZ)
+            putFloat("zeroPitch", zeroPitch)
+            putFloat("zeroRoll", zeroRoll)
         }
     }
 
     fun init() {
-        zeroX = sharedPreferences.getFloat("zeroX", 0f)
-        zeroY = sharedPreferences.getFloat("zeroY", 0f)
-        zeroZ = sharedPreferences.getFloat("zeroZ", 0f)
+        zeroPitch = sharedPreferences.getFloat("zeroPitch", 0f)
+        zeroRoll = sharedPreferences.getFloat("zeroRoll", 0f)
         resume()
     }
 
     fun resume() {
         sensorManager.registerListener(
             sensorListener, accelerometer, SensorManager.SENSOR_DELAY_UI
+        )
+        sensorManager.registerListener(
+            sensorListener, rotationVectorSensor, SensorManager.SENSOR_DELAY_UI
         )
     }
 
