@@ -39,7 +39,7 @@ class MainActivity : AppCompatActivity() {
             getSystemService(SENSOR_SERVICE) as SensorManager,
             getSharedPreferences("bubblePrefs", MODE_PRIVATE)
         )
-        bubbleManager.bubleStateListener = this::bubbleStateListener
+        bubbleManager.bubbleStateListener = this::bubbleStateListener
 
         bubbleManager.init()
     }
@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             debugText.text = String.format("pitch: %.2f, roll: %.2f", pitch, roll)
             verticalProgressBar.setProgress(((pitch + 90) / 180 * 100).toInt(), true)
-            horizontalProgressBar.setProgress(((roll + 90) / 180 * 100).toInt(), true)
+            horizontalProgressBar.setProgress(((-roll + 90) / 180 * 100).toInt(), true)
         }
     }
 

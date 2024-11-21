@@ -6,15 +6,13 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.core.content.edit
-import kotlin.math.atan2
-import kotlin.math.sqrt
 
 class BubbleManager(
     val sensorManager: SensorManager,
     val sharedPreferences: SharedPreferences
 ) {
 
-    var bubleStateListener: (Float, Float) -> Unit = { _, _ -> }
+    var bubbleStateListener: (Float, Float) -> Unit = { _, _ -> }
 
     private var zeroPitch: Float = 0f
     private var zeroRoll: Float = 0f
@@ -47,7 +45,7 @@ class BubbleManager(
                     SensorManager.remapCoordinateSystem(
                         rotationMatrix,
                         SensorManager.AXIS_X,
-                        SensorManager.AXIS_Z,
+                        SensorManager.AXIS_Y,
                         remappedRotationMatrix
                     )
 
@@ -62,7 +60,7 @@ class BubbleManager(
                     val pitch = lastPitch - zeroPitch
                     val roll = lastRoll - zeroRoll
 
-                    bubleStateListener(toDegrees(pitch), toDegrees(roll))
+                    bubbleStateListener(toDegrees(pitch), toDegrees(roll))
                 }
             }
         }
