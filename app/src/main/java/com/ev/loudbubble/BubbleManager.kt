@@ -40,7 +40,6 @@ class BubbleManager(
                         lastRotationVector
                     )
 
-                    // Remap the coordinate system to have Z pointing to the sky and X pointing along the device's short side
                     val remappedRotationMatrix = FloatArray(9)
                     SensorManager.remapCoordinateSystem(
                         rotationMatrix,

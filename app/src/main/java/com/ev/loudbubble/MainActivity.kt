@@ -11,6 +11,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -39,7 +41,12 @@ class MainActivity : AppCompatActivity() {
             getSystemService(SENSOR_SERVICE) as SensorManager,
             getSharedPreferences("bubblePrefs", MODE_PRIVATE)
         )
-        bubbleManager.bubbleStateListener = this::bubbleStateListener
+        bubbleManager.bubbleStateListener = CompositeBubbleLevelListener(
+            listOf(
+                UIProgressBarsLevelFeedback(),
+                musicalFeedback
+            )
+        )::onBubbleLevelChanged
 
         bubbleManager.init()
     }
@@ -47,20 +54,55 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         bubbleManager.pause()
+        musicalFeedback.stop()
     }
 
     override fun onResume() {
         super.onResume()
         bubbleManager.resume()
+        musicalFeedback.start()
     }
 
-    private fun bubbleStateListener(pitch: Float, roll: Float) {
-        runOnUiThread {
-            debugText.text = String.format("pitch: %.2f, roll: %.2f", pitch, roll)
-            verticalProgressBar.setProgress(((pitch + 90) / 180 * 100).toInt(), true)
-            horizontalProgressBar.setProgress(((-roll + 90) / 180 * 100).toInt(), true)
+    inner class UIProgressBarsLevelFeedback : BubbleLevelListener {
+        override fun onBubbleLevelChanged(pitch: Float, roll: Float) {
+            runOnUiThread {
+                debugText.text = String.format("pitch: %.2f, roll: %.2f", pitch, roll)
+                verticalProgressBar.setProgress(((pitch + 90) / 180 * 100).toInt(), true)
+                horizontalProgressBar.setProgress(((-roll + 90) / 180 * 100).toInt(), true)
+            }
+        }
+
+    }
+
+    inner class MusicalPitchLevelFeedback : BubbleLevelListener {
+
+        private val player = TonePlayer.createBackgroundPlayer()
+
+        fun start() {
+            player.start()
+        }
+
+        fun stop() {
+            player.stop()
+        }
+
+        override fun onBubbleLevelChanged(pitch: Float, roll: Float) {
+            if (!player.isEmpty()) return
+            runOnUiThread {
+                lifecycleScope.launch {
+                    if (pitch > 20) {
+                        player.queue(TonePlayer.Note.C(1000))
+                        player.queue(TonePlayer.Silence(1000))
+                    } else {
+                        player.queue(TonePlayer.Note.D(1000))
+                        player.queue(TonePlayer.Silence(1000))
+                    }
+                }
+            }
         }
     }
+
+    val musicalFeedback = MusicalPitchLevelFeedback()
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
@@ -74,6 +116,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Zeroed", Toast.LENGTH_SHORT).show()
                 true
             }
+
             R.id.action_settings -> {
                 val intent = Intent(this, SettingsActivity::class.java)
                 startActivity(intent)
