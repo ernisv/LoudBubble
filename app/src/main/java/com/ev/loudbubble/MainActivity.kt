@@ -13,6 +13,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlin.math.max
+import kotlin.math.min
 
 class MainActivity : AppCompatActivity() {
 
@@ -64,11 +66,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     inner class UIProgressBarsLevelFeedback : BubbleLevelListener {
+        private val progressBarDegreesLimit = 15.0
+
+        private fun scaleProgressBar(degrees: Double): Int {
+            return ((max(-progressBarDegreesLimit, min(progressBarDegreesLimit, -degrees))
+                    + progressBarDegreesLimit) / (progressBarDegreesLimit*2) * 100).toInt()
+        }
+
         override fun onBubbleLevelChanged(pitch: Float, roll: Float) {
             runOnUiThread {
                 debugText.text = String.format("pitch: %.2f, roll: %.2f", pitch, roll)
-                verticalProgressBar.setProgress(((pitch + 90) / 180 * 100).toInt(), true)
-                horizontalProgressBar.setProgress(((-roll + 90) / 180 * 100).toInt(), true)
+                verticalProgressBar.setProgress(scaleProgressBar(pitch.toDouble()), true)
+                horizontalProgressBar.setProgress(scaleProgressBar(roll.toDouble()), true)
             }
         }
 
@@ -77,6 +86,9 @@ class MainActivity : AppCompatActivity() {
     inner class MusicalPitchLevelFeedback : BubbleLevelListener {
 
         private val player = TonePlayer.createBackgroundPlayer()
+
+        val DistortionHzPerDegree = 5.0
+        val MaxDistortionHz = 40
 
         fun start() {
             player.start()
@@ -87,17 +99,37 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onBubbleLevelChanged(pitch: Float, roll: Float) {
-            if (!player.isEmpty()) return
-            runOnUiThread {
-                lifecycleScope.launch {
-                    if (pitch > 20) {
-                        player.queue(TonePlayer.Note.C(1000))
-                        player.queue(TonePlayer.Silence(1000))
-                    } else {
-                        player.queue(TonePlayer.Note.D(1000))
-                        player.queue(TonePlayer.Silence(1000))
-                    }
-                }
+            suspend fun playDistortedTone(perfectFreq: Float, distortionDegrees: Float) {
+
+                // play distorted tone
+                val distortedTone =
+                    min(
+                        perfectFreq + MaxDistortionHz,
+                        max(
+                            perfectFreq - MaxDistortionHz,
+                            (perfectFreq + DistortionHzPerDegree * distortionDegrees).toFloat()
+                        )
+                    )
+
+
+                player.queue(
+                    TonePlayer.MultiPlayable(
+                        *arrayOf(
+                            // play perfect note
+                            TonePlayer.Tone(perfectFreq, 500),
+                            // play distorted tone
+                            TonePlayer.Tone(distortedTone, 500)
+                        )
+                    )
+                )
+                // silence
+                player.queue(TonePlayer.Silence(1000))
+            }
+
+            if (!player.isIdle()) return
+            lifecycleScope.launch {
+                playDistortedTone(TonePlayer.Note.G(1).frequency(), pitch)
+                playDistortedTone(TonePlayer.Note.B(1).frequency(), pitch)
             }
         }
     }

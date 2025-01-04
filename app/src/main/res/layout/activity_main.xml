@@ -19,7 +19,7 @@
         android:layout_width="200dip"
         android:layout_height="wrap_content"
         android:layout_marginTop="100dp"
-        android:rotation="90"
+        android:rotation="270"
         app:layout_constraintBottom_toTopOf="@+id/horizontal_progress_bar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
