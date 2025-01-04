@@ -87,7 +87,7 @@ class MainActivity : AppCompatActivity() {
 
         private val player = TonePlayer.createBackgroundPlayer()
 
-        val DistortionHzPerDegree = 5.0
+        val DistortionHzPerDegree = 15.0
         val MaxDistortionHz = 40
 
         fun start() {
@@ -123,13 +123,14 @@ class MainActivity : AppCompatActivity() {
                     )
                 )
                 // silence
-                player.queue(TonePlayer.Silence(1000))
+                player.queue(TonePlayer.Silence(200))
             }
 
             if (!player.isIdle()) return
+
             lifecycleScope.launch {
                 playDistortedTone(TonePlayer.Note.G(1).frequency(), pitch)
-                playDistortedTone(TonePlayer.Note.B(1).frequency(), pitch)
+                playDistortedTone(TonePlayer.Note.B(1).frequency(), roll)
             }
         }
     }
