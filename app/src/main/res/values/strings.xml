@@ -2,4 +2,6 @@
     <string name="app_name">LoudBubble</string>
     <string name="action_settings">Settings</string>
     <string name="action_zero">Zero</string>
+
+    <string name="distortion_hz">distortion_hz</string>
 </resources>

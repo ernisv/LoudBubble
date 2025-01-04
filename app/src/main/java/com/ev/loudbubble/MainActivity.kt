@@ -1,8 +1,10 @@
 package com.ev.loudbubble
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.ProgressBar
@@ -12,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
@@ -63,6 +66,11 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         bubbleManager.resume()
         musicalFeedback.start()
+
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+
+        val distortionHzPerDegree = sharedPreferences.getInt(getString(R.string.distortion_hz), 15)
+        musicalFeedback.distortionHzPerDegree = distortionHzPerDegree
     }
 
     inner class UIProgressBarsLevelFeedback : BubbleLevelListener {
@@ -87,8 +95,9 @@ class MainActivity : AppCompatActivity() {
 
         private val player = TonePlayer.createBackgroundPlayer()
 
-        val DistortionHzPerDegree = 15.0
         val MaxDistortionHz = 40
+
+        var distortionHzPerDegree = 15
 
         fun start() {
             player.start()
@@ -101,13 +110,15 @@ class MainActivity : AppCompatActivity() {
         override fun onBubbleLevelChanged(pitch: Float, roll: Float) {
             suspend fun playDistortedTone(perfectFreq: Float, distortionDegrees: Float) {
 
+                Log.d("AudioDebug", "Distortion degrees: $distortionHzPerDegree")
+
                 // play distorted tone
                 val distortedTone =
                     min(
                         perfectFreq + MaxDistortionHz,
                         max(
                             perfectFreq - MaxDistortionHz,
-                            (perfectFreq + DistortionHzPerDegree * distortionDegrees).toFloat()
+                            (perfectFreq + distortionHzPerDegree * distortionDegrees).toFloat()
                         )
                     )
 
