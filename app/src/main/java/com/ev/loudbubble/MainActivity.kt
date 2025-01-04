@@ -1,7 +1,6 @@
 package com.ev.loudbubble
 
 import android.content.Intent
-import android.content.SharedPreferences
 import android.hardware.SensorManager
 import android.os.Bundle
 import android.util.Log
@@ -110,8 +109,6 @@ class MainActivity : AppCompatActivity() {
         override fun onBubbleLevelChanged(pitch: Float, roll: Float) {
             suspend fun playDistortedTone(perfectFreq: Float, distortionDegrees: Float) {
 
-                Log.d("AudioDebug", "Distortion degrees: $distortionHzPerDegree")
-
                 // play distorted tone
                 val distortedTone =
                     min(
@@ -163,6 +160,12 @@ class MainActivity : AppCompatActivity() {
 
             R.id.action_settings -> {
                 val intent = Intent(this, SettingsActivity::class.java)
+                startActivity(intent)
+                true
+            }
+
+            R.id.action_about -> {
+                val intent = Intent(this, AboutActivity::class.java)
                 startActivity(intent)
                 true
             }
