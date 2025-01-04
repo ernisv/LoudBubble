@@ -4,33 +4,36 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
+import kotlin.math.abs
+import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.sin
 
 
 object TonePlayer {
     private val TAG = "TonePlayer"
 
-    sealed interface Playable {
+    sealed interface Queueable
+
+    sealed interface Playable : Queueable {
         fun frequency(): Float
         fun durationMs(): Int
     }
 
-    class Silence(private val durationMs: Int) : Playable {
-        override fun frequency(): Float = 0.0f
-        override fun durationMs(): Int = durationMs
+    class Silence(private val durationMs: Int) : Queueable {
+        fun durationMs(): Int = durationMs
     }
 
     class Tone(private val frequency: Float, private val durationMs: Int) : Playable {
         override fun frequency(): Float = frequency
         override fun durationMs(): Int = durationMs
     }
+
+    class MultiPlayable(vararg val playables: Playable) : Queueable
 
     object Note {
 
@@ -74,40 +77,50 @@ object TonePlayer {
     }
 
     class BackgroundPlayer {
-        private val channel = Channel<Playable>(Channel.UNLIMITED)
+        private val channel = Channel<Queueable>(Channel.UNLIMITED)
         private var keepRunning = true
+        private var executing = false
 
-        suspend fun queue(playable: Playable) {
+        suspend fun queue(playable: Queueable) {
             Log.d(TAG, "Queued playable")
             channel.send(playable)
         }
 
-        fun isEmpty(): Boolean {
-            return channel.isEmpty
+        fun isIdle(): Boolean {
+            return channel.isEmpty && !executing
         }
 
         fun start() {
             keepRunning = true
+
+            suspend fun playCompletely(state: PlaybackState) {
+                while (state.isPlaying()) {
+                    delay(1)
+                }
+                state.cleanup()
+                executing = false
+            }
 
             Thread {
                 runBlocking {
                     launch {
                         while (keepRunning) {
                             Log.d(TAG, "Background spinning")
-                            val playable = channel.receive()
+                            val queueable = channel.receive()
+                            executing = true
                             Log.d(TAG, "Received playable from channel")
-                            when (playable) {
+                            when (queueable) {
+                                is MultiPlayable ->
+                                    playCompletely(play(*queueable.playables))
+
                                 is Silence -> {
-                                    Log.d(TAG, "Silence for ${playable.durationMs()}ms")
-                                    delay(playable.durationMs().toLong())
+                                    Log.d(TAG, "Silence for ${queueable.durationMs()}ms")
+                                    delay(queueable.durationMs().toLong())
+                                    executing = false
                                 }
-                                else -> {
-                                    val state = play(playable)
-                                    while (state.isPlaying()) {
-                                        delay(1)
-                                    }
-                                    state.cleanup()
-                                }
+
+                                is Playable -> playCompletely(play(queueable))
+
                             }
                         }
                     }
@@ -136,22 +149,44 @@ object TonePlayer {
 
     }
 
-    fun play(playable: Playable): PlaybackState {
+    fun play(vararg playables: Playable): PlaybackState {
         Log.d(TAG, "Playing playable")
 
         val sampleRate = 44100 // Standard sample rate for audio
+        val fadeSamples = sampleRate / 10
+        val totalDuration = playables.sumOf { it.durationMs() }
         val numSamples =
-            (playable.durationMs() * sampleRate / 1000) // Number of samples for the duration
+            (totalDuration * sampleRate / 1000) // Number of samples for the duration
         val buffer = ShortArray(numSamples)
+        val playableBoundarySamples = playables
+            .map { it.durationMs() * sampleRate / 1000 }
+            .fold(mutableListOf<Int>(), { acc, i -> acc.add((acc.lastOrNull() ?: 0) + i); acc })
+
+        fun freqBySample(sampleNum: Int): Float {
+            var samplesPassed = 0
+            for (playable in playables) {
+                if (samplesPassed + playable.durationMs() * sampleRate / 1000 > sampleNum)
+                    return playable.frequency()
+                samplesPassed += playable.durationMs() * sampleRate / 1000
+            }
+            return playables.last().frequency()
+        }
 
         for (i in 0 until numSamples) {
+            val frequency = freqBySample(i)
+
+            val fadeCoef = min(
+                fadeSamples,
+                playableBoundarySamples.minOfOrNull { abs(it - i) } ?: 0)
+                .toFloat() / fadeSamples
+
             buffer[i] =
-                (Short.MAX_VALUE * Math.sin(2 * Math.PI * i / (sampleRate / playable.frequency()))).toInt()
+                (fadeCoef * Short.MAX_VALUE * sin(2 * Math.PI * i / (sampleRate / frequency))).toInt()
                     .toShort()
         }
 
         val audioTrack = AudioTrack(
-            AudioManager.STREAM_MUSIC,
+            AudioManager.STREAM_RING,
             sampleRate,
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
