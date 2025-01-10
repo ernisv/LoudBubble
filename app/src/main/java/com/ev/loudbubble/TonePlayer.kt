@@ -1,9 +1,11 @@
 package com.ev.loudbubble
 
+import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import android.util.Log
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -86,6 +88,7 @@ object TonePlayer {
             channel.send(playable)
         }
 
+        @OptIn(ExperimentalCoroutinesApi::class)
         fun isIdle(): Boolean {
             return channel.isEmpty && !executing
         }
@@ -186,13 +189,19 @@ object TonePlayer {
         }
 
         val audioTrack = AudioTrack(
-            AudioManager.STREAM_RING,
-            sampleRate,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .build(),
+            AudioFormat.Builder()
+                .setSampleRate(sampleRate)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .build(),
             buffer.size * Short.SIZE_BYTES,
-            AudioTrack.MODE_STATIC
+            AudioTrack.MODE_STATIC,
+            AudioManager.AUDIO_SESSION_ID_GENERATE
         )
+
         audioTrack.setVolume(AudioTrack.getMaxVolume())
 
         audioTrack.write(buffer, 0, buffer.size)
